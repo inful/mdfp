@@ -31,6 +31,26 @@ jobs:
           # Run all benchmarks without running tests, include memory stats
           go test -bench . -benchmem -run ^$ ./... | tee output.txt
 
+      - name: Download previous benchmark data (cache baseline)
+        uses: actions/cache@v4
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark-${{ github.ref_name }}
+          restore-keys: |
+            ${{ runner.os }}-benchmark-
+
+      - name: Update cache baseline with current results
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: mdfp Go Benchmarks
+          tool: go
+          output-file-path: output.txt
+          external-data-json-path: ./cache/benchmark-data.json
+          # Don't fail the main build; alerts go to comments
+          fail-on-alert: false
+          comment-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Store benchmark result to GitHub Pages
         uses: benchmark-action/github-action-benchmark@v1
         with:
