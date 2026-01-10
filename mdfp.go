@@ -72,10 +72,21 @@ func AddFingerprintToFrontmatter(frontmatter, fingerprint string) string {
 	frontmatter = strings.TrimRight(frontmatter, "\n")
 
 	// Add fingerprint at the end
+	var buf strings.Builder
 	if frontmatter == "" {
-		return fmt.Sprintf("%s: %s\n", FingerprintField, fingerprint)
+		buf.WriteString(FingerprintField)
+		buf.WriteString(": ")
+		buf.WriteString(fingerprint)
+		buf.WriteString("\n")
+	} else {
+		buf.WriteString(frontmatter)
+		buf.WriteString("\n")
+		buf.WriteString(FingerprintField)
+		buf.WriteString(": ")
+		buf.WriteString(fingerprint)
+		buf.WriteString("\n")
 	}
-	return fmt.Sprintf("%s\n%s: %s\n", frontmatter, FingerprintField, fingerprint)
+	return buf.String()
 }
 
 // ProcessContent processes markdown content and adds/updates fingerprint.
@@ -98,7 +109,16 @@ func ProcessContent(content string) (string, error) {
 	if frontmatter == "" {
 		return body, nil
 	}
-	return fmt.Sprintf("%s\n%s%s\n%s", FrontmatterDelimiter, frontmatter, FrontmatterDelimiter, body), nil
+
+	var buf strings.Builder
+	buf.WriteString(FrontmatterDelimiter)
+	buf.WriteString("\n")
+	buf.WriteString(frontmatter)
+	buf.WriteString(FrontmatterDelimiter)
+	buf.WriteString("\n")
+	buf.WriteString(body)
+
+	return buf.String(), nil
 }
 
 // ProcessFile reads a markdown file, adds/updates fingerprint, and writes it back.
