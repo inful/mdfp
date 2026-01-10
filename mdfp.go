@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -53,6 +54,16 @@ func ParseMarkdown(content string) (frontmatter string, body string, err error) 
 func CalculateFingerprint(content string) string {
 	hash := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(hash[:])
+}
+
+// CalculateFingerprintReader computes a SHA256 hash from an io.Reader (streaming).
+// This is memory-efficient for large content as it processes data in chunks.
+func CalculateFingerprintReader(r io.Reader) (string, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // RemoveFingerprintFromFrontmatter removes any existing fingerprint field.
