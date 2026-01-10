@@ -74,7 +74,7 @@ func RemoveFingerprintFromFrontmatter(frontmatter string) string {
 
 	var filtered []string
 
-	for _, line := range strings.Split(frontmatter, "\n") { //nolint: modernize
+	for line := range strings.SplitSeq(frontmatter, "\n") {
 		// Skip fingerprint lines (with or without values)
 		if !strings.HasPrefix(line, FingerprintField+":") {
 			filtered = append(filtered, line)
@@ -180,7 +180,7 @@ func VerifyFingerprint(content string) (bool, error) {
 	// Extract current fingerprint from frontmatter by scanning lines
 	const splitParts = 2
 	var currentFingerprint string
-	for _, line := range strings.Split(frontmatter, "\n") { //nolint: modernize
+	for line := range strings.SplitSeq(frontmatter, "\n") {
 		if strings.HasPrefix(line, FingerprintField+":") {
 			// Extract the value after "fingerprint: "
 			parts := strings.SplitN(line, ":", splitParts)
