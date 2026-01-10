@@ -20,7 +20,6 @@ const FingerprintField = "fingerprint"
 
 // Precompiled regular expressions to avoid recompilation overhead.
 var (
-	reFingerprintLine    = regexp.MustCompile(`(?m)^fingerprint:\s*.*$\n?`)
 	reFingerprintExtract = regexp.MustCompile(`(?m)^fingerprint:\s*(.+)$`)
 )
 
@@ -62,8 +61,27 @@ func CalculateFingerprint(content string) string {
 
 // RemoveFingerprintFromFrontmatter removes any existing fingerprint field.
 func RemoveFingerprintFromFrontmatter(frontmatter string) string {
-	// Remove fingerprint line (handles various formats)
-	return reFingerprintLine.ReplaceAllString(frontmatter, "")
+	if frontmatter == "" {
+		return ""
+	}
+
+	lines := strings.Split(frontmatter, "\n")
+	var filtered []string
+
+	for _, line := range lines {
+		// Skip fingerprint lines (with or without values)
+		if !strings.HasPrefix(line, FingerprintField+":") {
+			filtered = append(filtered, line)
+		}
+	}
+
+	// Join back, removing any final empty line caused by split
+	result := strings.Join(filtered, "\n")
+	// Clean up trailing newline if the input didn't have multiple lines
+	if !strings.Contains(frontmatter, "\n") {
+		result = strings.TrimRight(result, "\n")
+	}
+	return result
 }
 
 // AddFingerprintToFrontmatter adds a fingerprint field to the frontmatter.
@@ -153,15 +171,24 @@ func VerifyFingerprint(content string) (bool, error) {
 		return false, err
 	}
 
-	// Extract current fingerprint from frontmatter
-	const minMatches = 2
-	matches := reFingerprintExtract.FindStringSubmatch(frontmatter)
-	if len(matches) < minMatches {
+	// Extract current fingerprint from frontmatter by scanning lines
+	var currentFingerprint string
+	lines := strings.Split(frontmatter, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, FingerprintField+":") {
+			// Extract the value after "fingerprint: "
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				currentFingerprint = strings.TrimSpace(parts[1])
+			}
+			break
+		}
+	}
+
+	if currentFingerprint == "" {
 		return false, errors.New("no fingerprint found in frontmatter")
 	}
 
-	currentFingerprint := strings.TrimSpace(matches[1])
 	expectedFingerprint := CalculateFingerprint(body)
-
 	return currentFingerprint == expectedFingerprint, nil
 }
