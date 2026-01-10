@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 )
 
@@ -19,9 +18,6 @@ const FrontmatterDelimiter = "---"
 const FingerprintField = "fingerprint"
 
 // Precompiled regular expressions to avoid recompilation overhead.
-var (
-	reFingerprintExtract = regexp.MustCompile(`(?m)^fingerprint:\s*(.+)$`)
-)
 
 // ParseMarkdown extracts the frontmatter and content from a markdown file.
 func ParseMarkdown(content string) (frontmatter string, body string, err error) {
@@ -65,10 +61,9 @@ func RemoveFingerprintFromFrontmatter(frontmatter string) string {
 		return ""
 	}
 
-	lines := strings.Split(frontmatter, "\n")
 	var filtered []string
 
-	for _, line := range lines {
+	for _, line := range strings.Split(frontmatter, "\n") { //nolint: modernize
 		// Skip fingerprint lines (with or without values)
 		if !strings.HasPrefix(line, FingerprintField+":") {
 			filtered = append(filtered, line)
@@ -172,13 +167,13 @@ func VerifyFingerprint(content string) (bool, error) {
 	}
 
 	// Extract current fingerprint from frontmatter by scanning lines
+	const splitParts = 2
 	var currentFingerprint string
-	lines := strings.Split(frontmatter, "\n")
-	for _, line := range lines {
+	for _, line := range strings.Split(frontmatter, "\n") { //nolint: modernize
 		if strings.HasPrefix(line, FingerprintField+":") {
 			// Extract the value after "fingerprint: "
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
+			parts := strings.SplitN(line, ":", splitParts)
+			if len(parts) == splitParts {
 				currentFingerprint = strings.TrimSpace(parts[1])
 			}
 			break
