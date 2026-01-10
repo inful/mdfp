@@ -1,3 +1,6 @@
+---
+fingerprint: d8f1941e81f2f9a1e40f648074ef0fa5a98b1fa176abf1bfdc9a1750850838c6
+---
 # mdfp
 
 [![CI](https://github.com/inful/mdfp/actions/workflows/ci.yml/badge.svg)](https://github.com/inful/mdfp/actions/workflows/ci.yml)

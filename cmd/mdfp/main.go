@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -13,13 +14,13 @@ import (
 const version = "0.1.0"
 
 var (
-	verifyMode  bool
+	verifyMode    bool
 	recursiveMode bool
-	verboseMode bool
-	showVersion bool
+	verboseMode   bool
+	showVersion   bool
 )
 
-func init() {
+func initFlags() {
 	flag.BoolVar(&verifyMode, "verify", false, "Verify fingerprints instead of updating them")
 	flag.BoolVar(&recursiveMode, "r", false, "Process directories recursively")
 	flag.BoolVar(&verboseMode, "v", false, "Verbose output")
@@ -40,10 +41,11 @@ func usage() {
 }
 
 func main() {
+	initFlags()
 	flag.Parse()
 
 	if showVersion {
-		fmt.Printf("mdfp version %s\n", version)
+		fmt.Fprintf(os.Stderr, "mdfp version %s\n", version)
 		os.Exit(0)
 	}
 
@@ -99,7 +101,6 @@ func processDirectory(dir string) error {
 		}
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
@@ -119,7 +120,7 @@ func processFile(filepath string) error {
 }
 
 func verifyFile(filepath string) error {
-	content, err := os.ReadFile(filepath)
+	content, err := os.ReadFile(filepath) //nolint: gosec
 	if err != nil {
 		return err
 	}
@@ -127,22 +128,22 @@ func verifyFile(filepath string) error {
 	valid, err := mdfp.VerifyFingerprint(string(content))
 	if err != nil {
 		if verboseMode {
-			fmt.Printf("✗ %s: %v\n", filepath, err)
+			fmt.Fprintf(os.Stderr, "✗ %s: %v\n", filepath, err)
 		}
 		return err
 	}
 
 	if valid {
 		if verboseMode {
-			fmt.Printf("✓ %s: fingerprint valid\n", filepath)
+			fmt.Fprintf(os.Stderr, "✓ %s: fingerprint valid\n", filepath)
 		}
 		return nil
 	}
 
 	if verboseMode {
-		fmt.Printf("✗ %s: fingerprint invalid\n", filepath)
+		fmt.Fprintf(os.Stderr, "✗ %s: fingerprint invalid\n", filepath)
 	}
-	return fmt.Errorf("fingerprint mismatch")
+	return errors.New("fingerprint mismatch")
 }
 
 func updateFile(filepath string) error {
@@ -152,7 +153,7 @@ func updateFile(filepath string) error {
 	}
 
 	if verboseMode {
-		fmt.Printf("✓ %s: fingerprint updated\n", filepath)
+		fmt.Fprintf(os.Stderr, "✓ %s: fingerprint updated\n", filepath)
 	}
 	return nil
 }

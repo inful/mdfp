@@ -221,30 +221,33 @@ fingerprint: oldfingerprint
 				t.Errorf("ProcessContent() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !tt.wantErr {
-				// Verify that output contains a fingerprint
-				if !strings.Contains(got, "fingerprint:") {
-					t.Error("ProcessContent() output missing fingerprint field")
-				}
-				// Verify the fingerprint is valid (64 hex chars)
-				lines := strings.Split(got, "\n")
-				foundFingerprint := false
-				for _, line := range lines {
-					if strings.HasPrefix(line, "fingerprint:") {
-						parts := strings.SplitN(line, ":", 2)
-						if len(parts) == 2 {
-							fp := strings.TrimSpace(parts[1])
-							if len(fp) != 64 {
-								t.Errorf("ProcessContent() fingerprint length = %d, want 64", len(fp))
-							}
-							foundFingerprint = true
-							break
+			if tt.wantErr {
+				return
+			}
+
+			// Verify that output contains a fingerprint
+			if !strings.Contains(got, "fingerprint:") {
+				t.Error("ProcessContent() output missing fingerprint field")
+			}
+
+			// Verify the fingerprint is valid (64 hex chars)
+			lines := strings.Split(got, "\n")
+			foundFingerprint := false
+			for _, line := range lines {
+				if strings.HasPrefix(line, "fingerprint:") {
+					parts := strings.SplitN(line, ":", 2)
+					if len(parts) == 2 {
+						fp := strings.TrimSpace(parts[1])
+						if len(fp) != 64 {
+							t.Errorf("ProcessContent() fingerprint length = %d, want 64", len(fp))
 						}
+						foundFingerprint = true
+						break
 					}
 				}
-				if !foundFingerprint {
-					t.Error("ProcessContent() did not find valid fingerprint")
-				}
+			}
+			if !foundFingerprint {
+				t.Error("ProcessContent() did not find valid fingerprint")
 			}
 		})
 	}
@@ -263,7 +266,7 @@ title: Test Document
 This is test content.`
 
 	// Write test file
-	err := os.WriteFile(testFile, []byte(content), 0644)
+	err := os.WriteFile(testFile, []byte(content), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -275,7 +278,7 @@ This is test content.`
 	}
 
 	// Read back the file
-	result, err := os.ReadFile(testFile)
+	result, err := os.ReadFile(testFile) //nolint: gosec
 	if err != nil {
 		t.Fatalf("Failed to read processed file: %v", err)
 	}
