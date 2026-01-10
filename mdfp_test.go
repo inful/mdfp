@@ -9,11 +9,11 @@ import (
 
 func TestParseMarkdown(t *testing.T) {
 	tests := []struct {
-		name              string
-		input             string
-		wantFrontmatter   string
-		wantBody          string
-		wantErr           bool
+		name            string
+		input           string
+		wantFrontmatter string
+		wantBody        string
+		wantErr         bool
 	}{
 		{
 			name: "with frontmatter",

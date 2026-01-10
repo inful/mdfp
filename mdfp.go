@@ -17,6 +17,12 @@ const FrontmatterDelimiter = "---"
 // FingerprintField is the field name used in frontmatter for the fingerprint
 const FingerprintField = "fingerprint"
 
+// Precompiled regular expressions to avoid recompilation overhead
+var (
+	reFingerprintLine    = regexp.MustCompile(`(?m)^fingerprint:\s*.*$\n?`)
+	reFingerprintExtract = regexp.MustCompile(`(?m)^fingerprint:\s*(.+)$`)
+)
+
 // ParseMarkdown extracts the frontmatter and content from a markdown file
 func ParseMarkdown(content string) (frontmatter string, body string, err error) {
 	// Check if file starts with frontmatter delimiter
@@ -45,6 +51,9 @@ func ParseMarkdown(content string) (frontmatter string, body string, err error) 
 }
 
 // CalculateFingerprint computes a SHA256 hash of the content
+// Note: SHA256 is hardware-accelerated on most platforms and faster than pure-Go BLAKE3.
+// For non-cryptographic use cases where speed is critical, this can be swapped with BLAKE3
+// by importing "github.com/zeebo/blake3" and using blake3.Sum256() instead.
 func CalculateFingerprint(content string) string {
 	hash := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(hash[:])
@@ -53,8 +62,7 @@ func CalculateFingerprint(content string) string {
 // RemoveFingerprintFromFrontmatter removes any existing fingerprint field
 func RemoveFingerprintFromFrontmatter(frontmatter string) string {
 	// Remove fingerprint line (handles various formats)
-	re := regexp.MustCompile(`(?m)^fingerprint:\s*.*$\n?`)
-	return re.ReplaceAllString(frontmatter, "")
+	return reFingerprintLine.ReplaceAllString(frontmatter, "")
 }
 
 // AddFingerprintToFrontmatter adds a fingerprint field to the frontmatter
@@ -106,10 +114,11 @@ func ProcessFile(filepath string) error {
 		return fmt.Errorf("failed to process content: %w", err)
 	}
 
-	// Write back to file
-	err = os.WriteFile(filepath, []byte(processed), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+	// Write back to file only if content changed
+	if processed != string(content) {
+		if err = os.WriteFile(filepath, []byte(processed), 0644); err != nil {
+			return fmt.Errorf("failed to write file: %w", err)
+		}
 	}
 
 	return nil
@@ -123,8 +132,7 @@ func VerifyFingerprint(content string) (bool, error) {
 	}
 
 	// Extract current fingerprint from frontmatter
-	re := regexp.MustCompile(`(?m)^fingerprint:\s*(.+)$`)
-	matches := re.FindStringSubmatch(frontmatter)
+	matches := reFingerprintExtract.FindStringSubmatch(frontmatter)
 	if len(matches) < 2 {
 		return false, fmt.Errorf("no fingerprint found in frontmatter")
 	}
