@@ -34,31 +34,31 @@ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`
 
 func BenchmarkParseMarkdown(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _, _ = ParseMarkdown(benchContent)
 	}
 }
 
 func BenchmarkCalculateFingerprint(b *testing.B) {
 	content := strings.Repeat("Test content line\n", 100)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = CalculateFingerprint(content)
 	}
 }
 
 func BenchmarkCalculateFingerprintSmall(b *testing.B) {
 	content := "Small content"
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = CalculateFingerprint(content)
 	}
 }
 
 func BenchmarkCalculateFingerprintLarge(b *testing.B) {
 	content := strings.Repeat("Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n", 1000)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = CalculateFingerprint(content)
 	}
 }
@@ -68,8 +68,8 @@ func BenchmarkRemoveFingerprintFromFrontmatter(b *testing.B) {
 author: John Doe
 fingerprint: abc123def456
 date: 2024-01-01`
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = RemoveFingerprintFromFrontmatter(frontmatter)
 	}
 }
@@ -79,14 +79,14 @@ func BenchmarkAddFingerprintToFrontmatter(b *testing.B) {
 author: John Doe
 date: 2024-01-01`
 	fingerprint := "abc123def456789"
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = AddFingerprintToFrontmatter(frontmatter, fingerprint)
 	}
 }
 
 func BenchmarkProcessContent(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = ProcessContent(benchContent)
 	}
 }
@@ -95,8 +95,8 @@ func BenchmarkProcessContentNoFrontmatter(b *testing.B) {
 	content := `# Test Document
 
 This is a test document without frontmatter.`
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_, _ = ProcessContent(content)
 	}
 }
@@ -107,8 +107,8 @@ func BenchmarkProcessContentLarge(b *testing.B) {
 title: Large Document
 ---
 ` + strings.Repeat("# Section\n\nLorem ipsum dolor sit amet.\n\n", 1000)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_, _ = ProcessContent(largeContent)
 	}
 }
@@ -116,8 +116,8 @@ title: Large Document
 func BenchmarkVerifyFingerprint(b *testing.B) {
 	// First create a valid fingerprinted content
 	processed, _ := ProcessContent(benchContent)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_, _ = VerifyFingerprint(processed)
 	}
 }
