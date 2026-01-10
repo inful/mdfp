@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768088946699,
+  "lastUpdate": 1768089110057,
   "repoUrl": "https://github.com/inful/mdfp",
   "entries": {
     "mdfp Go Benchmarks": [
@@ -1320,6 +1320,270 @@ window.BENCHMARK_DATA = {
             "value": 5,
             "unit": "allocs/op",
             "extra": "1384689 times\n4 procs"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "inful@users.noreply.github.com",
+            "name": "inful",
+            "username": "inful"
+          },
+          "committer": {
+            "email": "inful@users.noreply.github.com",
+            "name": "inful",
+            "username": "inful"
+          },
+          "distinct": true,
+          "id": "2fdb95f5dd1f1d73a1d8af4499ece1f496150cf9",
+          "message": "chore: fix remaining golangci-lint issues\n\n- Remove unused regexp import\n- Remove unused splitParts constant from RemoveFingerprintFromFrontmatter\n- Add nolint directives for strings.Split (modernize check) to maintain\n  performance-optimized code (avoid SplitSeq for performance reasons)",
+          "timestamp": "2026-01-10T23:50:05Z",
+          "tree_id": "0ffd3f11584a753206ff970989ab33244496f20f",
+          "url": "https://github.com/inful/mdfp/commit/2fdb95f5dd1f1d73a1d8af4499ece1f496150cf9"
+        },
+        "date": 1768089109185,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkParseMarkdown",
+            "value": 56.14,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "21316728 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkParseMarkdown - ns/op",
+            "value": 56.14,
+            "unit": "ns/op",
+            "extra": "21316728 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkParseMarkdown - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "21316728 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkParseMarkdown - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "21316728 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprint",
+            "value": 1545,
+            "unit": "ns/op\t    2176 B/op\t       3 allocs/op",
+            "extra": "758994 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprint - ns/op",
+            "value": 1545,
+            "unit": "ns/op",
+            "extra": "758994 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprint - B/op",
+            "value": 2176,
+            "unit": "B/op",
+            "extra": "758994 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprint - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "758994 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintSmall",
+            "value": 174.3,
+            "unit": "ns/op\t     128 B/op\t       2 allocs/op",
+            "extra": "6863966 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintSmall - ns/op",
+            "value": 174.3,
+            "unit": "ns/op",
+            "extra": "6863966 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintSmall - B/op",
+            "value": 128,
+            "unit": "B/op",
+            "extra": "6863966 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintSmall - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "6863966 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintLarge",
+            "value": 41013,
+            "unit": "ns/op\t   57472 B/op\t       3 allocs/op",
+            "extra": "29126 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintLarge - ns/op",
+            "value": 41013,
+            "unit": "ns/op",
+            "extra": "29126 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintLarge - B/op",
+            "value": 57472,
+            "unit": "B/op",
+            "extra": "29126 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCalculateFingerprintLarge - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "29126 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRemoveFingerprintFromFrontmatter",
+            "value": 183,
+            "unit": "ns/op\t     176 B/op\t       3 allocs/op",
+            "extra": "6696416 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRemoveFingerprintFromFrontmatter - ns/op",
+            "value": 183,
+            "unit": "ns/op",
+            "extra": "6696416 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRemoveFingerprintFromFrontmatter - B/op",
+            "value": 176,
+            "unit": "B/op",
+            "extra": "6696416 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRemoveFingerprintFromFrontmatter - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "6696416 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAddFingerprintToFrontmatter",
+            "value": 72.79,
+            "unit": "ns/op\t     144 B/op\t       2 allocs/op",
+            "extra": "16131098 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAddFingerprintToFrontmatter - ns/op",
+            "value": 72.79,
+            "unit": "ns/op",
+            "extra": "16131098 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAddFingerprintToFrontmatter - B/op",
+            "value": 144,
+            "unit": "B/op",
+            "extra": "16131098 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAddFingerprintToFrontmatter - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "16131098 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContent",
+            "value": 1372,
+            "unit": "ns/op\t    2328 B/op\t      12 allocs/op",
+            "extra": "830785 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContent - ns/op",
+            "value": 1372,
+            "unit": "ns/op",
+            "extra": "830785 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContent - B/op",
+            "value": 2328,
+            "unit": "B/op",
+            "extra": "830785 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContent - allocs/op",
+            "value": 12,
+            "unit": "allocs/op",
+            "extra": "830785 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentNoFrontmatter",
+            "value": 447.6,
+            "unit": "ns/op\t     584 B/op\t       8 allocs/op",
+            "extra": "2737160 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentNoFrontmatter - ns/op",
+            "value": 447.6,
+            "unit": "ns/op",
+            "extra": "2737160 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentNoFrontmatter - B/op",
+            "value": 584,
+            "unit": "B/op",
+            "extra": "2737160 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentNoFrontmatter - allocs/op",
+            "value": 8,
+            "unit": "allocs/op",
+            "extra": "2737160 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentLarge",
+            "value": 35619,
+            "unit": "ns/op\t   82368 B/op\t      10 allocs/op",
+            "extra": "34495 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentLarge - ns/op",
+            "value": 35619,
+            "unit": "ns/op",
+            "extra": "34495 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentLarge - B/op",
+            "value": 82368,
+            "unit": "B/op",
+            "extra": "34495 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkProcessContentLarge - allocs/op",
+            "value": 10,
+            "unit": "allocs/op",
+            "extra": "34495 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVerifyFingerprint",
+            "value": 870.1,
+            "unit": "ns/op\t     848 B/op\t       5 allocs/op",
+            "extra": "1378423 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVerifyFingerprint - ns/op",
+            "value": 870.1,
+            "unit": "ns/op",
+            "extra": "1378423 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVerifyFingerprint - B/op",
+            "value": 848,
+            "unit": "B/op",
+            "extra": "1378423 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVerifyFingerprint - allocs/op",
+            "value": 5,
+            "unit": "allocs/op",
+            "extra": "1378423 times\n4 procs"
           }
         ]
       }
