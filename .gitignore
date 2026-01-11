@@ -34,3 +34,4 @@ go.work.sum
 # Build artifacts
 /mdfp
 dist/
+.roo/mcp.json
