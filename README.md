@@ -208,6 +208,8 @@ BenchmarkProcessContent-4                     	  197313	      5904 ns/op
 
 Performance is continuously monitored through benchmarks to ensure changes don't introduce regressions.
 
+**View detailed benchmark history:** [Performance Benchmarks](https://inful.github.io/mdfp/)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
