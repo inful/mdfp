@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,13 +31,16 @@ func initFlags() {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "mdfp - Markdown Fingerprint Tool v%s\n\n", version)
-	fmt.Fprintf(os.Stderr, "Usage: mdfp [options] <file|directory>...\n\n")
+	fmt.Fprintf(os.Stderr, "Usage: mdfp [options] <file|directory>...\n")
+	fmt.Fprintf(os.Stderr, "       mdfp [options]            # Read from stdin, write to stdout\n\n")
 	fmt.Fprintf(os.Stderr, "Options:\n")
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "\nExamples:\n")
 	fmt.Fprintf(os.Stderr, "  mdfp file.md                  # Add/update fingerprint in a single file\n")
 	fmt.Fprintf(os.Stderr, "  mdfp -r docs/                 # Process all .md files in docs/ recursively\n")
 	fmt.Fprintf(os.Stderr, "  mdfp -verify file.md          # Verify fingerprint in file\n")
+	fmt.Fprintf(os.Stderr, "  cat file.md | mdfp            # Read from stdin, write to stdout\n")
+	fmt.Fprintf(os.Stderr, "  mdfp -verify < file.md        # Verify from stdin\n")
 	fmt.Fprintf(os.Stderr, "  mdfp -v -r .                  # Process all .md files verbosely\n")
 }
 
@@ -51,9 +55,12 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "Error: No files or directories specified\n\n")
-		usage()
-		os.Exit(1)
+		// Read from stdin when no files specified
+		if err := processStdin(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	exitCode := 0
@@ -81,6 +88,57 @@ func processPath(path string) error {
 	}
 
 	return processFile(path)
+}
+
+func processStdin() error {
+	// Read from stdin
+	content, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("failed to read from stdin: %w", err)
+	}
+
+	if verifyMode {
+		return verifyStdin(string(content))
+	}
+
+	return updateStdin(string(content))
+}
+
+func verifyStdin(content string) error {
+	valid, err := mdfp.VerifyFingerprint(content)
+	if err != nil {
+		if verboseMode {
+			fmt.Fprintf(os.Stderr, "✗ stdin: %v\n", err)
+		}
+		return err
+	}
+
+	if valid {
+		if verboseMode {
+			fmt.Fprintf(os.Stderr, "✓ stdin: fingerprint valid\n")
+		}
+		return nil
+	}
+
+	if verboseMode {
+		fmt.Fprintf(os.Stderr, "✗ stdin: fingerprint invalid\n")
+	}
+	return errors.New("fingerprint mismatch")
+}
+
+func updateStdin(content string) error {
+	processed, err := mdfp.ProcessContent(content)
+	if err != nil {
+		return fmt.Errorf("failed to process content: %w", err)
+	}
+
+	if verboseMode {
+		fmt.Fprintf(os.Stderr, "✓ stdin: fingerprint updated\n")
+	}
+
+	// Write to stdout
+	_, err = os.Stdout.WriteString(processed)
+	return err
 }
 
 func processDirectory(dir string) error {
