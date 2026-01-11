@@ -1,6 +1,7 @@
 package mdfp
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -544,3 +545,177 @@ func TestProcessContentNoFrontmatter(t *testing.T) {
 		t.Errorf("ProcessContent() result should have frontmatter delimiters, got parts: %d", len(parts))
 	}
 }
+
+// ExampleParseMarkdown demonstrates how to parse markdown content with frontmatter.
+func ExampleParseMarkdown() {
+	content := `---
+title: My Document
+author: John Doe
+---
+# Hello World
+
+This is the content.`
+
+	frontmatter, body, err := ParseMarkdown(content)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Frontmatter:")
+	fmt.Println(frontmatter)
+	fmt.Println("\nBody:")
+	fmt.Println(body)
+
+	// Output:
+	// Frontmatter:
+	// title: My Document
+	// author: John Doe
+	//
+	// Body:
+	// # Hello World
+	//
+	// This is the content.
+}
+
+// ExampleCalculateFingerprint demonstrates how to calculate a fingerprint
+// for markdown content.
+func ExampleCalculateFingerprint() {
+	content := `# My Document
+
+This is the content that will be fingerprinted.`
+
+	fingerprint := CalculateFingerprint(content)
+	fmt.Printf("Fingerprint length: %d (SHA256 hex)\n", len(fingerprint))
+	fmt.Printf("First 16 chars: %s\n", fingerprint[:16])
+
+	// Output:
+	// Fingerprint length: 64 (SHA256 hex)
+	// First 16 chars: 025da365007b0fec
+}
+
+// ExampleProcessContent demonstrates how to add a fingerprint to markdown content.
+func ExampleProcessContent() {
+	content := `---
+title: My Document
+---
+# Introduction
+
+This document will get a fingerprint.`
+
+	processed, err := ProcessContent(content)
+	if err != nil {
+		panic(err)
+	}
+
+	// The fingerprint is now embedded in the frontmatter
+	if strings.Contains(processed, "fingerprint:") {
+		fmt.Println("✓ Fingerprint was added to frontmatter")
+	}
+
+	// Verify the fingerprint is valid
+	valid, err := VerifyFingerprint(processed)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Fingerprint valid: %v\n", valid)
+
+	// Output:
+	// ✓ Fingerprint was added to frontmatter
+	// Fingerprint valid: true
+}
+
+// ExampleAddFingerprintToFrontmatter demonstrates how to add a fingerprint
+// to existing frontmatter.
+func ExampleAddFingerprintToFrontmatter() {
+	frontmatter := `title: Example
+author: Jane Doe`
+
+	fingerprint := "abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567abc890def1"
+
+	result := AddFingerprintToFrontmatter(frontmatter, fingerprint)
+	fmt.Println(result)
+
+	// Output:
+	// title: Example
+	// author: Jane Doe
+	// fingerprint: abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567abc890def1
+}
+
+// ExampleRemoveFingerprintFromFrontmatter demonstrates how to remove
+// a fingerprint from frontmatter.
+func ExampleRemoveFingerprintFromFrontmatter() {
+	frontmatter := `title: Example
+fingerprint: abc123def456
+author: Jane Doe`
+
+	result := RemoveFingerprintFromFrontmatter(frontmatter)
+	fmt.Println(result)
+
+	// Output:
+	// title: Example
+	// author: Jane Doe
+}
+
+// ExampleVerifyFingerprint demonstrates how to verify that a document's
+// fingerprint matches its content.
+func ExampleVerifyFingerprint() {
+	// First, create a document with a valid fingerprint
+	content := `---
+title: Example Document
+---
+# Content
+
+This is the document content.`
+
+	processed, err := ProcessContent(content)
+	if err != nil {
+		panic(err)
+	}
+
+	// Now verify the fingerprint
+	valid, err := VerifyFingerprint(processed)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Fingerprint is valid: %v\n", valid)
+
+	// If content is modified, the fingerprint becomes invalid
+	// (this is how you detect if a document has been modified)
+	modifiedContent := strings.ReplaceAll(processed, "Content", "Modified Content")
+	valid, err = VerifyFingerprint(modifiedContent)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("After modification, fingerprint is valid: %v\n", valid)
+
+	// Output:
+	// Fingerprint is valid: true
+	// After modification, fingerprint is valid: false
+}
+
+// ExampleCalculateFingerprintReader demonstrates how to calculate a fingerprint
+// from an io.Reader (useful for large files).
+func ExampleCalculateFingerprintReader() {
+	// In a real scenario, this could be an open file
+	content := "Large file content that is read from a stream"
+	reader := strings.NewReader(content)
+
+	fingerprint, err := CalculateFingerprintReader(reader)
+	if err != nil {
+		panic(err)
+	}
+
+	// Calculate the same content directly for comparison
+	directFingerprint := CalculateFingerprint(content)
+
+	fmt.Printf("Fingerprint from reader: %s...\n", fingerprint[:16])
+	fmt.Printf("Match with direct: %v\n", fingerprint == directFingerprint)
+
+	// Output:
+	// Fingerprint from reader: 39e7b499e34ca70d...
+	// Match with direct: true
+}
+
