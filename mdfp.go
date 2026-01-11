@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 )
 
 // FrontmatterDelimiter is the delimiter used for YAML frontmatter.
@@ -17,6 +18,25 @@ const FrontmatterDelimiter = "---"
 
 // FingerprintField is the field name used in frontmatter for the fingerprint.
 const FingerprintField = "fingerprint"
+
+// builderPool reduces allocation overhead by reusing string builders.
+var builderPool = sync.Pool{
+	New: func() interface{} {
+		return &strings.Builder{}
+	},
+}
+
+// getBuilder retrieves a builder from the pool and resets it.
+func getBuilder() *strings.Builder {
+	b := builderPool.Get().(*strings.Builder)
+	b.Reset()
+	return b
+}
+
+// putBuilder returns a builder to the pool.
+func putBuilder(b *strings.Builder) {
+	builderPool.Put(b)
+}
 
 // Precompiled regular expressions to avoid recompilation overhead.
 
@@ -72,7 +92,8 @@ func RemoveFingerprintFromFrontmatter(frontmatter string) string {
 		return ""
 	}
 
-	var filtered []string
+	// Preallocate with estimated capacity (typical frontmatter has 5-10 lines, minus 1 for fingerprint)
+	filtered := make([]string, 0, 8)
 
 	for line := range strings.SplitSeq(frontmatter, "\n") {
 		// Skip fingerprint lines (with or without values)
@@ -96,7 +117,12 @@ func AddFingerprintToFrontmatter(frontmatter, fingerprint string) string {
 	frontmatter = strings.TrimRight(frontmatter, "\n")
 
 	// Add fingerprint at the end
-	var buf strings.Builder
+	buf := getBuilder()
+	defer putBuilder(buf)
+
+	// Pre-grow to avoid reallocations
+	buf.Grow(len(frontmatter) + len(FingerprintField) + len(fingerprint) + 4)
+
 	if frontmatter == "" {
 		buf.WriteString(FingerprintField)
 		buf.WriteString(": ")
@@ -134,7 +160,12 @@ func ProcessContent(content string) (string, error) {
 		return body, nil
 	}
 
-	var buf strings.Builder
+	buf := getBuilder()
+	defer putBuilder(buf)
+
+	// Pre-grow to avoid reallocations: delimiters + frontmatter + body + newlines
+	buf.Grow(len(frontmatter) + len(body) + len(FrontmatterDelimiter)*2 + 4)
+
 	buf.WriteString(FrontmatterDelimiter)
 	buf.WriteString("\n")
 	buf.WriteString(frontmatter)
