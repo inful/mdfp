@@ -343,4 +343,204 @@ title: Test
 	if err == nil {
 		t.Error("VerifyFingerprint() expected error for missing fingerprint")
 	}
+
+	// Test with no frontmatter
+	noFrontmatterContent := "# Just content without frontmatter"
+	_, err = VerifyFingerprint(noFrontmatterContent)
+	if err == nil {
+		t.Error("VerifyFingerprint() expected error for content without frontmatter")
+	}
+
+	// Test with malformed fingerprint line (no colon)
+	malformedContent := `---
+fingerprint
+---
+# Content`
+	_, err = VerifyFingerprint(malformedContent)
+	if err == nil {
+		t.Error("VerifyFingerprint() expected error for malformed fingerprint line")
+	}
+}
+
+func TestCalculateFingerprintReader(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantLen int
+		wantErr bool
+	}{
+		{
+			name:    "simple content",
+			content: "Hello World",
+			wantLen: 64, // SHA256 produces 64 hex characters
+			wantErr: false,
+		},
+		{
+			name:    "empty content",
+			content: "",
+			wantLen: 64,
+			wantErr: false,
+		},
+		{
+			name:    "multiline content",
+			content: "Line 1\nLine 2\nLine 3",
+			wantLen: 64,
+			wantErr: false,
+		},
+		{
+			name:    "large content",
+			content: strings.Repeat("Lorem ipsum dolor sit amet. ", 1000),
+			wantLen: 64,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := strings.NewReader(tt.content)
+			got, err := CalculateFingerprintReader(reader)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CalculateFingerprintReader() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				if len(got) != tt.wantLen {
+					t.Errorf("CalculateFingerprintReader() hash length = %d, want %d", len(got), tt.wantLen)
+				}
+
+				// Verify consistency: same content should produce same hash
+				expectedHash := CalculateFingerprint(tt.content)
+				if got != expectedHash {
+					t.Errorf("CalculateFingerprintReader() = %v, want %v", got, expectedHash)
+				}
+			}
+		})
+	}
+}
+
+func TestProcessFileErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	t.Run("nonexistent file", func(t *testing.T) {
+		err := ProcessFile(filepath.Join(tmpDir, "nonexistent.md"))
+		if err == nil {
+			t.Error("ProcessFile() expected error for nonexistent file")
+		}
+		if !strings.Contains(err.Error(), "failed to read file") {
+			t.Errorf("ProcessFile() error = %v, want 'failed to read file' error", err)
+		}
+	})
+
+	t.Run("read-only directory", func(t *testing.T) {
+		roDir := filepath.Join(tmpDir, "readonly")
+		if err := os.Mkdir(roDir, 0o500); err != nil {
+			t.Fatalf("Failed to create read-only directory: %v", err)
+		}
+		defer os.Chmod(roDir, 0o700) // Restore permissions for cleanup
+
+		testFile := filepath.Join(roDir, "test.md")
+
+		// Try to process a file in read-only directory
+		err := ProcessFile(testFile)
+		if err == nil {
+			t.Error("ProcessFile() expected error for read-only directory")
+		}
+	})
+
+	t.Run("invalid markdown structure", func(t *testing.T) {
+		testFile := filepath.Join(tmpDir, "invalid.md")
+		invalidContent := "---\ntitle: Test\n# Missing closing delimiter"
+
+		if err := os.WriteFile(testFile, []byte(invalidContent), 0o600); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		err := ProcessFile(testFile)
+		if err == nil {
+			t.Error("ProcessFile() expected error for invalid markdown structure")
+		}
+		if !strings.Contains(err.Error(), "failed to process content") {
+			t.Errorf("ProcessFile() error = %v, want 'failed to process content' error", err)
+		}
+	})
+
+	t.Run("no change needed", func(t *testing.T) {
+		testFile := filepath.Join(tmpDir, "nochange.md")
+		content := `---
+title: Test
+---
+# Content`
+
+		// Process once to add fingerprint
+		if err := os.WriteFile(testFile, []byte(content), 0o600); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+		if err := ProcessFile(testFile); err != nil {
+			t.Fatalf("First ProcessFile() failed: %v", err)
+		}
+
+		// Get file info after first process
+		info1, err := os.Stat(testFile)
+		if err != nil {
+			t.Fatalf("Failed to stat file: %v", err)
+		}
+
+		// Process again - should not write since content unchanged
+		if err := ProcessFile(testFile); err != nil {
+			t.Errorf("Second ProcessFile() error = %v", err)
+		}
+
+		// Verify file wasn't rewritten (same modtime would indicate no write)
+		info2, err := os.Stat(testFile)
+		if err != nil {
+			t.Fatalf("Failed to stat file: %v", err)
+		}
+
+		// Note: We can't reliably test modtime due to filesystem resolution,
+		// but we can verify the content is still valid
+		result, err := os.ReadFile(testFile) //nolint: gosec
+		if err != nil {
+			t.Fatalf("Failed to read file: %v", err)
+		}
+
+		valid, err := VerifyFingerprint(string(result))
+		if err != nil {
+			t.Errorf("VerifyFingerprint() error = %v", err)
+		}
+		if !valid {
+			t.Error("File fingerprint became invalid after reprocessing")
+		}
+
+		// Sanity check that we got file info
+		if info1.Size() == 0 || info2.Size() == 0 {
+			t.Error("File size is 0, something went wrong")
+		}
+	})
+}
+
+func TestProcessContentNoFrontmatter(t *testing.T) {
+	// Test the branch where frontmatter is empty after processing
+	input := "# Just content without frontmatter\n\nSome text here."
+
+	result, err := ProcessContent(input)
+	if err != nil {
+		t.Fatalf("ProcessContent() error = %v", err)
+	}
+
+	// Should add frontmatter with fingerprint
+	if !strings.Contains(result, "---") {
+		t.Error("ProcessContent() should add frontmatter delimiters for content without frontmatter")
+	}
+
+	if !strings.Contains(result, "fingerprint:") {
+		t.Error("ProcessContent() should add fingerprint field")
+	}
+
+	// Verify structure: should have frontmatter block and content
+	parts := strings.Split(result, "---")
+	if len(parts) < 3 {
+		t.Errorf("ProcessContent() result should have frontmatter delimiters, got parts: %d", len(parts))
+	}
 }
