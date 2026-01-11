@@ -1,5 +1,5 @@
 ---
-fingerprint: d8f1941e81f2f9a1e40f648074ef0fa5a98b1fa176abf1bfdc9a1750850838c6
+fingerprint: addfe661b7768cc74c00b7c5e8bb5dd44e2aaa5a8ca8763cf867dca670a907c6
 ---
 # mdfp
 
@@ -84,6 +84,24 @@ mdfp -verify -r docs/
 
 ```bash
 mdfp -v -r .
+```
+
+#### Pipeline/stdin-stdout usage
+
+Process markdown through Unix pipes:
+
+```bash
+# Add/update fingerprint and output to stdout
+cat document.md | mdfp > output.md
+
+# Verify fingerprint from stdin
+cat document.md | mdfp -verify
+
+# Verify with verbose output
+cat document.md | mdfp -verify -v
+
+# Chain with other commands
+curl https://example.com/document.md | mdfp | gzip > output.md.gz
 ```
 
 #### Get help
