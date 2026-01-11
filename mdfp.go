@@ -19,9 +19,17 @@ const FrontmatterDelimiter = "---"
 // FingerprintField is the field name used in frontmatter for the fingerprint.
 const FingerprintField = "fingerprint"
 
+const (
+	splitParts       = 2
+	minMatches       = 2
+	filePermissions  = 0o600
+	defaultSliceSize = 8
+	growthOverhead   = 4
+)
+
 // builderPool reduces allocation overhead by reusing string builders.
 var builderPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &strings.Builder{}
 	},
 }
@@ -93,7 +101,7 @@ func RemoveFingerprintFromFrontmatter(frontmatter string) string {
 	}
 
 	// Preallocate with estimated capacity (typical frontmatter has 5-10 lines, minus 1 for fingerprint)
-	filtered := make([]string, 0, 8)
+	filtered := make([]string, 0, defaultSliceSize)
 
 	for line := range strings.SplitSeq(frontmatter, "\n") {
 		// Skip fingerprint lines (with or without values)
@@ -121,7 +129,7 @@ func AddFingerprintToFrontmatter(frontmatter, fingerprint string) string {
 	defer putBuilder(buf)
 
 	// Pre-grow to avoid reallocations
-	buf.Grow(len(frontmatter) + len(FingerprintField) + len(fingerprint) + 4)
+	buf.Grow(len(frontmatter) + len(FingerprintField) + len(fingerprint) + growthOverhead)
 
 	if frontmatter == "" {
 		buf.WriteString(FingerprintField)
@@ -164,7 +172,7 @@ func ProcessContent(content string) (string, error) {
 	defer putBuilder(buf)
 
 	// Pre-grow to avoid reallocations: delimiters + frontmatter + body + newlines
-	buf.Grow(len(frontmatter) + len(body) + len(FrontmatterDelimiter)*2 + 4)
+	buf.Grow(len(frontmatter) + len(body) + len(FrontmatterDelimiter)*2 + growthOverhead)
 
 	buf.WriteString(FrontmatterDelimiter)
 	buf.WriteString("\n")
