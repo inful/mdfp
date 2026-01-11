@@ -8,6 +8,11 @@ import (
 	"testing"
 )
 
+const testFrontmatterContent = `---
+title: Test
+---
+# Content`
+
 func TestParseMarkdown(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -300,12 +305,7 @@ This is test content.`
 
 func TestVerifyFingerprint(t *testing.T) {
 	// First, create content with a valid fingerprint
-	input := `---
-title: Test
----
-# Content`
-
-	processed, err := ProcessContent(input)
+	processed, err := ProcessContent(testFrontmatterContent)
 	if err != nil {
 		t.Fatalf("Failed to process content: %v", err)
 	}
@@ -335,12 +335,7 @@ fingerprint: invalidfingerprint
 	}
 
 	// Test with no fingerprint
-	noFingerprintContent := `---
-title: Test
----
-# Content`
-
-	_, err = VerifyFingerprint(noFingerprintContent)
+	_, err = VerifyFingerprint(testFrontmatterContent)
 	if err == nil {
 		t.Error("VerifyFingerprint() expected error for missing fingerprint")
 	}
@@ -421,103 +416,109 @@ func TestCalculateFingerprintReader(t *testing.T) {
 	}
 }
 
-func TestProcessFileErrors(t *testing.T) {
-	tmpDir := t.TempDir()
+func testProcessFileNonexistentFile(t *testing.T, tmpDir string) {
+	t.Helper()
+	err := ProcessFile(filepath.Join(tmpDir, "nonexistent.md"))
+	if err == nil {
+		t.Error("ProcessFile() expected error for nonexistent file")
+	}
+	if !strings.Contains(err.Error(), "failed to read file") {
+		t.Errorf("ProcessFile() error = %v, want 'failed to read file' error", err)
+	}
+}
 
-	t.Run("nonexistent file", func(t *testing.T) {
-		err := ProcessFile(filepath.Join(tmpDir, "nonexistent.md"))
-		if err == nil {
-			t.Error("ProcessFile() expected error for nonexistent file")
+func testProcessFileReadOnlyDirectory(t *testing.T, tmpDir string) {
+	t.Helper()
+	roDir := filepath.Join(tmpDir, "readonly")
+	if err := os.Mkdir(roDir, 0o500); err != nil {
+		t.Fatalf("Failed to create read-only directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(roDir, 0o755); err != nil { //nolint: gosec
+			t.Logf("Warning: failed to restore directory permissions: %v", err)
 		}
-		if !strings.Contains(err.Error(), "failed to read file") {
-			t.Errorf("ProcessFile() error = %v, want 'failed to read file' error", err)
-		}
-	})
+	}()
 
-	t.Run("read-only directory", func(t *testing.T) {
-		roDir := filepath.Join(tmpDir, "readonly")
-		if err := os.Mkdir(roDir, 0o500); err != nil {
-			t.Fatalf("Failed to create read-only directory: %v", err)
-		}
-		defer os.Chmod(roDir, 0o700) // Restore permissions for cleanup
+	testFile := filepath.Join(roDir, "test.md")
 
-		testFile := filepath.Join(roDir, "test.md")
+	// Try to process a file in read-only directory
+	err := ProcessFile(testFile)
+	if err == nil {
+		t.Error("ProcessFile() expected error for read-only directory")
+	}
+}
 
-		// Try to process a file in read-only directory
-		err := ProcessFile(testFile)
-		if err == nil {
-			t.Error("ProcessFile() expected error for read-only directory")
-		}
-	})
+func testProcessFileInvalidMarkdown(t *testing.T, tmpDir string) {
+	t.Helper()
+	testFile := filepath.Join(tmpDir, "invalid.md")
+	invalidContent := "---\ntitle: Test\n# Missing closing delimiter"
 
-	t.Run("invalid markdown structure", func(t *testing.T) {
-		testFile := filepath.Join(tmpDir, "invalid.md")
-		invalidContent := "---\ntitle: Test\n# Missing closing delimiter"
+	if err := os.WriteFile(testFile, []byte(invalidContent), 0o600); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
 
-		if err := os.WriteFile(testFile, []byte(invalidContent), 0o600); err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
+	err := ProcessFile(testFile)
+	if err == nil {
+		t.Error("ProcessFile() expected error for invalid markdown structure")
+	}
+	if !strings.Contains(err.Error(), "failed to process content") {
+		t.Errorf("ProcessFile() error = %v, want 'failed to process content' error", err)
+	}
+}
 
-		err := ProcessFile(testFile)
-		if err == nil {
-			t.Error("ProcessFile() expected error for invalid markdown structure")
-		}
-		if !strings.Contains(err.Error(), "failed to process content") {
-			t.Errorf("ProcessFile() error = %v, want 'failed to process content' error", err)
-		}
-	})
-
-	t.Run("no change needed", func(t *testing.T) {
-		testFile := filepath.Join(tmpDir, "nochange.md")
-		content := `---
+func testProcessFileNoChange(t *testing.T, tmpDir string) {
+	t.Helper()
+	testFile := filepath.Join(tmpDir, "nochange.md")
+	content := `---
 title: Test
 ---
 # Content`
 
-		// Process once to add fingerprint
-		if err := os.WriteFile(testFile, []byte(content), 0o600); err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-		if err := ProcessFile(testFile); err != nil {
-			t.Fatalf("First ProcessFile() failed: %v", err)
-		}
+	// Process once to add fingerprint
+	if err := os.WriteFile(testFile, []byte(content), 0o600); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	if err := ProcessFile(testFile); err != nil {
+		t.Fatalf("First ProcessFile() failed: %v", err)
+	}
 
-		// Get file info after first process
-		info1, err := os.Stat(testFile)
-		if err != nil {
-			t.Fatalf("Failed to stat file: %v", err)
-		}
+	// Process again - should not write since content unchanged
+	if err := ProcessFile(testFile); err != nil {
+		t.Errorf("Second ProcessFile() error = %v", err)
+	}
 
-		// Process again - should not write since content unchanged
-		if err := ProcessFile(testFile); err != nil {
-			t.Errorf("Second ProcessFile() error = %v", err)
-		}
+	// Verify the content is still valid
+	result, err := os.ReadFile(testFile) //nolint: gosec
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
 
-		// Verify file wasn't rewritten (same modtime would indicate no write)
-		info2, err := os.Stat(testFile)
-		if err != nil {
-			t.Fatalf("Failed to stat file: %v", err)
-		}
+	valid, err := VerifyFingerprint(string(result))
+	if err != nil {
+		t.Errorf("VerifyFingerprint() error = %v", err)
+	}
+	if !valid {
+		t.Error("File fingerprint became invalid after reprocessing")
+	}
+}
 
-		// Note: We can't reliably test modtime due to filesystem resolution,
-		// but we can verify the content is still valid
-		result, err := os.ReadFile(testFile) //nolint: gosec
-		if err != nil {
-			t.Fatalf("Failed to read file: %v", err)
-		}
+func TestProcessFileErrors(t *testing.T) {
+	tmpDir := t.TempDir()
 
-		valid, err := VerifyFingerprint(string(result))
-		if err != nil {
-			t.Errorf("VerifyFingerprint() error = %v", err)
-		}
-		if !valid {
-			t.Error("File fingerprint became invalid after reprocessing")
-		}
+	t.Run("nonexistent file", func(t *testing.T) {
+		testProcessFileNonexistentFile(t, tmpDir)
+	})
 
-		// Sanity check that we got file info
-		if info1.Size() == 0 || info2.Size() == 0 {
-			t.Error("File size is 0, something went wrong")
-		}
+	t.Run("read-only directory", func(t *testing.T) {
+		testProcessFileReadOnlyDirectory(t, tmpDir)
+	})
+
+	t.Run("invalid markdown structure", func(t *testing.T) {
+		testProcessFileInvalidMarkdown(t, tmpDir)
+	})
+
+	t.Run("no change needed", func(t *testing.T) {
+		testProcessFileNoChange(t, tmpDir)
 	})
 }
 
@@ -718,4 +719,3 @@ func ExampleCalculateFingerprintReader() {
 	// Fingerprint from reader: 39e7b499e34ca70d...
 	// Match with direct: true
 }
-
