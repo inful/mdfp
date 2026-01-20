@@ -74,6 +74,16 @@ date: 2024-01-01`
 	}
 }
 
+func BenchmarkRemoveFingerprintFromFrontmatter_NoMatch(b *testing.B) {
+	frontmatter := `title: Test
+author: John Doe
+date: 2024-01-01`
+
+	for b.Loop() {
+		_ = RemoveFingerprintFromFrontmatter(frontmatter)
+	}
+}
+
 func BenchmarkAddFingerprintToFrontmatter(b *testing.B) {
 	frontmatter := `title: Test
 author: John Doe

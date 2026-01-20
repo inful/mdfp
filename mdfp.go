@@ -129,23 +129,31 @@ func RemoveFingerprintFromFrontmatter(frontmatter string) string {
 		return ""
 	}
 
-	// Preallocate with estimated capacity (typical frontmatter has 5-10 lines, minus 1 for fingerprint)
-	filtered := make([]string, 0, defaultSliceSize)
+	// Fast path: if there's no line that could possibly start with "fingerprint:",
+	// return as-is. This is safe because the removal rule is an anchored prefix match.
+	if !strings.HasPrefix(frontmatter, FingerprintField+":") && !strings.Contains(frontmatter, "\n"+FingerprintField+":") {
+		return frontmatter
+	}
 
+	buf := getBuilder()
+	defer putBuilder(buf)
+	buf.Grow(len(frontmatter))
+
+	first := true
 	for line := range strings.SplitSeq(frontmatter, "\n") {
 		// Skip fingerprint lines (with or without values)
-		if !strings.HasPrefix(line, FingerprintField+":") {
-			filtered = append(filtered, line)
+		if strings.HasPrefix(line, FingerprintField+":") {
+			continue
 		}
+
+		if !first {
+			buf.WriteString("\n")
+		}
+		first = false
+		buf.WriteString(line)
 	}
 
-	// Join back, removing any final empty line caused by split
-	result := strings.Join(filtered, "\n")
-	// Clean up trailing newline if the input didn't have multiple lines
-	if !strings.Contains(frontmatter, "\n") {
-		result = strings.TrimRight(result, "\n")
-	}
-	return result
+	return buf.String()
 }
 
 // AddFingerprintToFrontmatter adds a fingerprint field to the frontmatter.

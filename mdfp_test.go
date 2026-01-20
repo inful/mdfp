@@ -127,6 +127,11 @@ func TestRemoveFingerprintFromFrontmatter(t *testing.T) {
 			want:  "title: Test\nauthor: John",
 		},
 		{
+			name:  "with fingerprint and trailing newline",
+			input: "title: Test\nfingerprint: abc123\nauthor: John\n",
+			want:  "title: Test\nauthor: John\n",
+		},
+		{
 			name:  "no fingerprint",
 			input: "title: Test\nauthor: John",
 			want:  "title: Test\nauthor: John",
@@ -135,6 +140,11 @@ func TestRemoveFingerprintFromFrontmatter(t *testing.T) {
 			name:  "fingerprint with spaces",
 			input: "title: Test\nfingerprint:    abc123   \nauthor: John",
 			want:  "title: Test\nauthor: John",
+		},
+		{
+			name:  "only fingerprint line with trailing newline",
+			input: "fingerprint: abc123\n",
+			want:  "",
 		},
 		{
 			name:  "empty input",
