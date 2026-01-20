@@ -588,6 +588,21 @@ This is the content.`
 	// This is the content.
 }
 
+// ExampleCalculateFingerprintFromParts demonstrates how to calculate the same
+// fingerprint mdfp would produce when you already have parsed frontmatter/body.
+func ExampleCalculateFingerprintFromParts() {
+	frontmatter := "title: Example\nfingerprint: should-be-ignored"
+	body := "# Content\n"
+
+	fp := CalculateFingerprintFromParts(frontmatter, body)
+
+	canonical := "---\n" + RemoveFingerprintFromFrontmatter(frontmatter) + "\n---\n" + body
+	fmt.Printf("Matches canonical: %v\n", fp == CalculateFingerprint(canonical))
+
+	// Output:
+	// Matches canonical: true
+}
+
 // ExampleCalculateFingerprint demonstrates how to calculate a fingerprint
 // for markdown content.
 func ExampleCalculateFingerprint() {

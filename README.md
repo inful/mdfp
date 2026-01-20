@@ -170,6 +170,13 @@ Checks if the fingerprint in the frontmatter matches the content.
 #### `CalculateFingerprint(content string) string`
 Computes a SHA256 hash of the given content.
 
+#### `CalculateFingerprintFromParts(frontmatter, body string) string`
+Computes the fingerprint for a document represented by parsed parts (same `frontmatter`/`body` shape returned by `ParseMarkdown`).
+
+- If `frontmatter == ""`: fingerprints `body` as-is.
+- Else: fingerprints the canonical virtual document `---\n{RemoveFingerprintFromFrontmatter(frontmatter)}\n---\n{body}`.
+    `body` is used verbatim (no trimming).
+
 #### `ParseMarkdown(content string) (frontmatter string, body string, err error)`
 Extracts frontmatter and body from markdown content.
 
