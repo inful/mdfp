@@ -89,7 +89,8 @@ func CalculateFingerprint(content string) string {
 //
 // If frontmatter is empty, this hashes body as-is.
 // Otherwise it hashes the canonical virtual document:
-//   ---\n{RemoveFingerprintFromFrontmatter(frontmatter)}\n---\n{body}
+//
+//	---\n{RemoveFingerprintFromFrontmatter(frontmatter)}\n---\n{body}
 //
 // Note: this is hashing-input canonicalization only; it does not trim or otherwise
 // normalize body/frontmatter beyond removing the fingerprint field.
