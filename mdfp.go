@@ -84,6 +84,34 @@ func CalculateFingerprint(content string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// CalculateFingerprintFromParts computes the fingerprint for a document represented
+// by its parsed parts.
+//
+// If frontmatter is empty, this hashes body as-is.
+// Otherwise it hashes the canonical virtual document:
+//   ---\n{RemoveFingerprintFromFrontmatter(frontmatter)}\n---\n{body}
+//
+// Note: this is hashing-input canonicalization only; it does not trim or otherwise
+// normalize body/frontmatter beyond removing the fingerprint field.
+func CalculateFingerprintFromParts(frontmatter, body string) string {
+	if frontmatter == "" {
+		return CalculateFingerprint(body)
+	}
+
+	frontmatterWithoutFingerprint := RemoveFingerprintFromFrontmatter(frontmatter)
+
+	h := sha256.New()
+	_, _ = io.WriteString(h, FrontmatterDelimiter)
+	_, _ = io.WriteString(h, "\n")
+	_, _ = io.WriteString(h, frontmatterWithoutFingerprint)
+	_, _ = io.WriteString(h, "\n")
+	_, _ = io.WriteString(h, FrontmatterDelimiter)
+	_, _ = io.WriteString(h, "\n")
+	_, _ = io.WriteString(h, body)
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // CalculateFingerprintReader computes a SHA256 hash from an io.Reader (streaming).
 // This is memory-efficient for large content as it processes data in chunks.
 func CalculateFingerprintReader(r io.Reader) (string, error) {

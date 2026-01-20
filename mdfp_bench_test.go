@@ -121,3 +121,34 @@ func BenchmarkVerifyFingerprint(b *testing.B) {
 		_, _ = VerifyFingerprint(processed)
 	}
 }
+
+func BenchmarkCalculateFingerprintFromParts_NoFrontmatter(b *testing.B) {
+	body := strings.Repeat("Test content line\n", 100)
+
+	for b.Loop() {
+		_ = CalculateFingerprintFromParts("", body)
+	}
+}
+
+func BenchmarkCalculateFingerprintFromParts_WithFrontmatter(b *testing.B) {
+	frontmatter := `title: Test
+author: John Doe
+fingerprint: abc123def456
+date: 2024-01-01`
+	body := strings.Repeat("Test content line\n", 100)
+
+	for b.Loop() {
+		_ = CalculateFingerprintFromParts(frontmatter, body)
+	}
+}
+
+func BenchmarkCalculateFingerprintFromParts_LargeBody(b *testing.B) {
+	frontmatter := `title: Large Document
+fingerprint: abc123def456
+date: 2024-01-01`
+	body := strings.Repeat("Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n", 1000)
+
+	for b.Loop() {
+		_ = CalculateFingerprintFromParts(frontmatter, body)
+	}
+}
