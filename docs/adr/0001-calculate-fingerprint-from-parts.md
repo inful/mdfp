@@ -45,7 +45,12 @@ func CalculateFingerprintFromParts(frontmatter, body string) string
 
 ### Compatibility guarantee
 
-For any document `doc`, if `fm, body := ParseMarkdown(doc)`, then `CalculateFingerprintFromParts(fm, body)` matches whatever `CalculateFingerprint(docWithoutFingerprintUpdate)` would produce under current mdfp semantics.
+For any document `doc`, if `fm, body := ParseMarkdown(doc)`, then `CalculateFingerprintFromParts(fm, body)` produces the fingerprint for the canonical hashing input defined above.
+
+In particular, under current mdfp semantics this means:
+
+- If `fm == ""`, the fingerprint matches `CalculateFingerprint(body)` (the same value used by `ProcessContent`/`VerifyFingerprint` today).
+- If `fm != ""`, the fingerprint matches `CalculateFingerprint("---\n" + RemoveFingerprintFromFrontmatter(fm) + "\n---\n" + body)`.
 
 ## Rationale
 
