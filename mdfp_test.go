@@ -54,6 +54,13 @@ title: Test
 			wantBody:        "# Content",
 			wantErr:         false,
 		},
+		{
+			name:            "with crlf frontmatter",
+			input:           "---\r\ntitle: Test\r\n---\r\n# Hello World\r\n",
+			wantFrontmatter: "title: Test",
+			wantBody:        "# Hello World\r\n",
+			wantErr:         false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -266,6 +273,24 @@ fingerprint: oldfingerprint
 				t.Error("ProcessContent() did not find valid fingerprint")
 			}
 		})
+	}
+}
+
+func TestProcessContentPreservesCRLF(t *testing.T) {
+	input := "---\r\ntitle: Test\r\n---\r\n# Content\r\n"
+
+	processed, err := ProcessContent(input)
+	if err != nil {
+		t.Fatalf("ProcessContent() error = %v", err)
+	}
+
+	if !strings.Contains(processed, "\r\n") {
+		t.Fatal("ProcessContent() should preserve CRLF newlines")
+	}
+
+	lfOnly := strings.ReplaceAll(processed, "\r\n", "")
+	if strings.Contains(lfOnly, "\n") {
+		t.Fatal("ProcessContent() should not introduce LF-only newlines into a CRLF document")
 	}
 }
 

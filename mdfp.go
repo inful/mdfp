@@ -3,14 +3,15 @@
 package mdfp
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
-	"sync"
+
+	"github.com/inful/mdfm"
 )
 
 // FrontmatterDelimiter is the delimiter used for YAML frontmatter.
@@ -19,60 +20,31 @@ const FrontmatterDelimiter = "---"
 // FingerprintField is the field name used in frontmatter for the fingerprint.
 const FingerprintField = "fingerprint"
 
-const (
-	splitParts       = 2
-	minMatches       = 2
-	filePermissions  = 0o600
-	defaultSliceSize = 8
-	growthOverhead   = 4
+var (
+	openingDelimiterLF   = []byte(FrontmatterDelimiter + "\n")
+	openingDelimiterCRLF = []byte(FrontmatterDelimiter + "\r\n")
+	closingDelimiterLF   = []byte("\n" + FrontmatterDelimiter + "\n")
+	closingDelimiterCRLF = []byte("\r\n" + FrontmatterDelimiter + "\r\n")
 )
-
-// builderPool reduces allocation overhead by reusing string builders.
-var builderPool = sync.Pool{
-	New: func() any {
-		return &strings.Builder{}
-	},
-}
-
-// getBuilder retrieves a builder from the pool and resets it.
-func getBuilder() *strings.Builder {
-	b := builderPool.Get().(*strings.Builder)
-	b.Reset()
-	return b
-}
-
-// putBuilder returns a builder to the pool.
-func putBuilder(b *strings.Builder) {
-	builderPool.Put(b)
-}
-
-// Precompiled regular expressions to avoid recompilation overhead.
 
 // ParseMarkdown extracts the frontmatter and content from a markdown file.
 func ParseMarkdown(content string) (frontmatter string, body string, err error) {
-	// Check if file starts with frontmatter delimiter
-	if !strings.HasPrefix(content, FrontmatterDelimiter+"\n") {
-		// No frontmatter, entire content is body
+	contentBytes := []byte(content)
+	doc, err := mdfm.Parse(contentBytes)
+	if err != nil {
+		return "", "", err
+	}
+
+	if !doc.HasFrontmatter() {
 		return "", content, nil
 	}
 
-	// Find the closing delimiter
-	rest := content[len(FrontmatterDelimiter)+1:]
-
-	// Handle case where closing delimiter is at the start (empty frontmatter)
-	if strings.HasPrefix(rest, FrontmatterDelimiter+"\n") {
-		body = rest[len(FrontmatterDelimiter)+1:]
-		return "", body, nil
+	frontmatterBytes, bodyBytes, err := extractFrontmatterAndBodyBytes(contentBytes)
+	if err != nil {
+		return "", "", err
 	}
 
-	idx := strings.Index(rest, "\n"+FrontmatterDelimiter+"\n")
-	if idx == -1 {
-		return "", "", errors.New("unclosed frontmatter block")
-	}
-
-	frontmatter = rest[:idx]
-	body = rest[idx+len(FrontmatterDelimiter)+2:]
-	return frontmatter, body, nil
+	return string(frontmatterBytes), string(bodyBytes), nil
 }
 
 // CalculateFingerprint computes a SHA256 hash of the content
@@ -80,8 +52,7 @@ func ParseMarkdown(content string) (frontmatter string, body string, err error) 
 // For non-cryptographic use cases where speed is critical, this can be swapped with BLAKE3
 // by importing "github.com/zeebo/blake3" and using blake3.Sum256() instead.
 func CalculateFingerprint(content string) string {
-	hash := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(hash[:])
+	return calculateFingerprintBytes([]byte(content))
 }
 
 // CalculateFingerprintFromParts computes the fingerprint for a document represented
@@ -128,119 +99,59 @@ func RemoveFingerprintFromFrontmatter(frontmatter string) string {
 	if frontmatter == "" {
 		return ""
 	}
+	hadTrailingNewline := strings.HasSuffix(frontmatter, "\n")
 
-	// Fast path: if there's no line that could possibly start with "fingerprint:",
-	// return as-is. This is safe because the removal rule is an anchored prefix match.
-	if !strings.HasPrefix(frontmatter, FingerprintField+":") && !strings.Contains(frontmatter, "\n"+FingerprintField+":") {
+	updated, err := mutateFrontmatter(frontmatter, func(doc *mdfm.Document) error {
+		_, err := doc.Delete(FingerprintField)
+		return err
+	})
+	if err != nil {
 		return frontmatter
 	}
 
-	buf := getBuilder()
-	defer putBuilder(buf)
-	buf.Grow(len(frontmatter))
-
-	first := true
-	for line := range strings.SplitSeq(frontmatter, "\n") {
-		// Skip fingerprint lines (with or without values)
-		if strings.HasPrefix(line, FingerprintField+":") {
-			continue
-		}
-
-		if !first {
-			buf.WriteString("\n")
-		}
-		first = false
-		buf.WriteString(line)
+	if updated != "" && hadTrailingNewline {
+		return updated + "\n"
 	}
 
-	return buf.String()
+	return updated
 }
 
 // AddFingerprintToFrontmatter adds a fingerprint field to the frontmatter.
 func AddFingerprintToFrontmatter(frontmatter, fingerprint string) string {
-	// Trim any trailing newlines from frontmatter
-	frontmatter = strings.TrimRight(frontmatter, "\n")
-
-	// Add fingerprint at the end
-	buf := getBuilder()
-	defer putBuilder(buf)
-
-	// Pre-grow to avoid reallocations
-	buf.Grow(len(frontmatter) + len(FingerprintField) + len(fingerprint) + growthOverhead)
-
-	if frontmatter == "" {
-		buf.WriteString(FingerprintField)
-		buf.WriteString(": ")
-		buf.WriteString(fingerprint)
-		buf.WriteString("\n")
-	} else {
-		buf.WriteString(frontmatter)
-		buf.WriteString("\n")
-		buf.WriteString(FingerprintField)
-		buf.WriteString(": ")
-		buf.WriteString(fingerprint)
-		buf.WriteString("\n")
+	updated, err := mutateFrontmatter(frontmatter, func(doc *mdfm.Document) error {
+		return doc.SetString(FingerprintField, fingerprint)
+	})
+	if err != nil {
+		return frontmatter
 	}
-	return buf.String()
+
+	return strings.TrimRight(updated, "\n") + "\n"
 }
 
 // ProcessContent processes markdown content and adds/updates fingerprint.
 func ProcessContent(content string) (string, error) {
-	frontmatter, body, err := ParseMarkdown(content)
+	doc, err := mdfm.ParseString(content)
 	if err != nil {
 		return "", err
 	}
 
-	// Calculate fingerprint of body only (excluding frontmatter)
-	fingerprint := CalculateFingerprint(body)
-
-	// Remove existing fingerprint if present
-	frontmatter = RemoveFingerprintFromFrontmatter(frontmatter)
-
-	// Add new fingerprint
-	frontmatter = AddFingerprintToFrontmatter(frontmatter, fingerprint)
-
-	// Reconstruct the file
-	if frontmatter == "" {
-		return body, nil
+	if err = setDocumentFingerprint(doc); err != nil {
+		return "", err
 	}
 
-	buf := getBuilder()
-	defer putBuilder(buf)
+	updatedBytes, err := doc.Bytes()
+	if err != nil {
+		return "", err
+	}
 
-	// Pre-grow to avoid reallocations: delimiters + frontmatter + body + newlines
-	buf.Grow(len(frontmatter) + len(body) + len(FrontmatterDelimiter)*2 + growthOverhead)
-
-	buf.WriteString(FrontmatterDelimiter)
-	buf.WriteString("\n")
-	buf.WriteString(frontmatter)
-	buf.WriteString(FrontmatterDelimiter)
-	buf.WriteString("\n")
-	buf.WriteString(body)
-
-	return buf.String(), nil
+	return string(updatedBytes), nil
 }
 
 // ProcessFile reads a markdown file, adds/updates fingerprint, and writes it back.
 func ProcessFile(filepath string) error {
-	// Read file
-	const filePermissions = 0o600
-	content, err := os.ReadFile(filepath) //nolint: gosec
+	err := mdfm.UpdateFile(filepath, setDocumentFingerprint)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Process content
-	processed, err := ProcessContent(string(content))
-	if err != nil {
-		return fmt.Errorf("failed to process content: %w", err)
-	}
-
-	// Write back to file only if content changed
-	if processed != string(content) {
-		if err = os.WriteFile(filepath, []byte(processed), filePermissions); err != nil {
-			return fmt.Errorf("failed to write file: %w", err)
-		}
+		return mapProcessFileError(err)
 	}
 
 	return nil
@@ -248,29 +159,117 @@ func ProcessFile(filepath string) error {
 
 // VerifyFingerprint checks if the fingerprint in the file matches the content.
 func VerifyFingerprint(content string) (bool, error) {
-	frontmatter, body, err := ParseMarkdown(content)
+	doc, err := mdfm.Parse([]byte(content))
 	if err != nil {
 		return false, err
 	}
 
-	// Extract current fingerprint from frontmatter by scanning lines
-	const splitParts = 2
-	var currentFingerprint string
-	for line := range strings.SplitSeq(frontmatter, "\n") {
-		if strings.HasPrefix(line, FingerprintField+":") {
-			// Extract the value after "fingerprint: "
-			parts := strings.SplitN(line, ":", splitParts)
-			if len(parts) == splitParts {
-				currentFingerprint = strings.TrimSpace(parts[1])
-			}
-			break
-		}
+	currentFingerprint, ok, err := doc.GetString(FingerprintField)
+	if err != nil {
+		return false, err
 	}
-
-	if currentFingerprint == "" {
+	if !ok || currentFingerprint == "" {
 		return false, errors.New("no fingerprint found in frontmatter")
 	}
 
-	expectedFingerprint := CalculateFingerprint(body)
+	expectedFingerprint := calculateFingerprintBytes(doc.Body())
 	return currentFingerprint == expectedFingerprint, nil
+}
+
+func setDocumentFingerprint(doc *mdfm.Document) error {
+	return doc.SetString(FingerprintField, calculateFingerprintBytes(doc.Body()))
+}
+
+func calculateFingerprintBytes(content []byte) string {
+	hash := sha256.Sum256(content)
+	return hex.EncodeToString(hash[:])
+}
+
+func mapProcessFileError(err error) error {
+	message := err.Error()
+
+	switch {
+	case strings.HasPrefix(message, "failed to stat file:"), strings.HasPrefix(message, "failed to read file:"):
+		return fmt.Errorf("failed to read file: %w", err)
+	case strings.HasPrefix(message, "failed to parse markdown:"), strings.HasPrefix(message, "failed to mutate document:"):
+		return fmt.Errorf("failed to process content: %w", err)
+	case strings.HasPrefix(message, "failed to write file:"):
+		return fmt.Errorf("failed to write file: %w", err)
+	default:
+		return err
+	}
+}
+
+func mutateFrontmatter(frontmatter string, mutate func(*mdfm.Document) error) (string, error) {
+	trimmed := strings.TrimRight(frontmatter, "\n")
+	content := FrontmatterDelimiter + "\n" + trimmed + "\n" + FrontmatterDelimiter + "\n"
+
+	doc, err := mdfm.ParseString(content)
+	if err != nil {
+		return "", err
+	}
+
+	if err = mutate(doc); err != nil {
+		return "", err
+	}
+
+	return frontmatterWithoutDelimiters(doc)
+}
+
+func frontmatterWithoutDelimiters(doc *mdfm.Document) (string, error) {
+	serialized, err := doc.Bytes()
+	if err != nil {
+		return "", err
+	}
+
+	frontmatter, err := extractFrontmatterBytes(serialized)
+	if err != nil {
+		return "", err
+	}
+
+	return string(frontmatter), nil
+}
+
+func extractFrontmatterBytes(content []byte) ([]byte, error) {
+	frontmatter, _, err := extractFrontmatterAndBodyBytes(content)
+	if err != nil {
+		return nil, err
+	}
+
+	return frontmatter, nil
+}
+
+func extractFrontmatterAndBodyBytes(content []byte) ([]byte, []byte, error) {
+	var (
+		start   int
+		closing []byte
+		empty   []byte
+	)
+
+	switch {
+	case bytes.HasPrefix(content, openingDelimiterCRLF):
+		start = len(openingDelimiterCRLF)
+		closing = closingDelimiterCRLF
+		empty = openingDelimiterCRLF
+	case bytes.HasPrefix(content, openingDelimiterLF):
+		start = len(openingDelimiterLF)
+		closing = closingDelimiterLF
+		empty = openingDelimiterLF
+	default:
+		return nil, nil, errors.New("serialized document missing frontmatter opening delimiter")
+	}
+
+	if bytes.HasPrefix(content[start:], empty) {
+		return nil, content[start+len(empty):], nil
+	}
+
+	idx := bytes.Index(content[start:], closing)
+	if idx == -1 {
+		return nil, nil, errors.New("serialized document missing frontmatter closing delimiter")
+	}
+
+	end := start + idx
+	bodyStart := end + len(closing)
+
+	return content[start:end], content[bodyStart:], nil
 }
