@@ -557,6 +557,48 @@ func TestProcessFileErrors(t *testing.T) {
 	})
 }
 
+// stubFrontmatterDoc is a minimal test stub implementing FrontmatterDocument.
+type stubFrontmatterDoc struct {
+	fields map[string]string
+	body   []byte
+}
+
+func (s *stubFrontmatterDoc) Has(key string) (bool, error) {
+	_, ok := s.fields[key]
+	return ok, nil
+}
+
+func (s *stubFrontmatterDoc) SetString(key, value string) error {
+	s.fields[key] = value
+	return nil
+}
+
+func (s *stubFrontmatterDoc) Body() []byte {
+	return s.body
+}
+
+func TestSetFingerprint(t *testing.T) {
+	body := []byte("# Body content\n")
+	doc := &stubFrontmatterDoc{fields: map[string]string{}, body: body}
+
+	if err := SetFingerprint(doc); err != nil {
+		t.Fatalf("SetFingerprint() error = %v", err)
+	}
+
+	fp, ok := doc.fields[FingerprintField]
+	if !ok {
+		t.Fatal("SetFingerprint() did not set fingerprint field")
+	}
+	if len(fp) != 64 {
+		t.Errorf("SetFingerprint() fingerprint length = %d, want 64", len(fp))
+	}
+
+	expected := CalculateFingerprint(string(body))
+	if fp != expected {
+		t.Errorf("SetFingerprint() = %v, want %v", fp, expected)
+	}
+}
+
 func TestProcessContentNoFrontmatter(t *testing.T) {
 	// Test the branch where frontmatter is empty after processing
 	input := "# Just content without frontmatter\n\nSome text here."

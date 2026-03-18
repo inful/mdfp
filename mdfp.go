@@ -20,6 +20,23 @@ const FrontmatterDelimiter = "---"
 // FingerprintField is the field name used in frontmatter for the fingerprint.
 const FingerprintField = "fingerprint"
 
+// FrontmatterDocument is the minimal interface for a parsed markdown document
+// with frontmatter. It is satisfied by *mdfm.Document, allowing callers who
+// already hold a parsed document to pass it through without taking a direct
+// dependency on mdfm.
+type FrontmatterDocument interface {
+	Has(key string) (bool, error)
+	SetString(key, value string) error
+	Body() []byte
+}
+
+// SetFingerprint calculates and sets the fingerprint field on an already-parsed
+// document. This is a passthrough for callers who hold a parsed FrontmatterDocument
+// and want to avoid re-parsing the markdown.
+func SetFingerprint(doc FrontmatterDocument) error {
+	return doc.SetString(FingerprintField, calculateFingerprintBytes(doc.Body()))
+}
+
 var (
 	openingDelimiterLF   = []byte(FrontmatterDelimiter + "\n")
 	openingDelimiterCRLF = []byte(FrontmatterDelimiter + "\r\n")
@@ -177,7 +194,7 @@ func VerifyFingerprint(content string) (bool, error) {
 }
 
 func setDocumentFingerprint(doc *mdfm.Document) error {
-	return doc.SetString(FingerprintField, calculateFingerprintBytes(doc.Body()))
+	return SetFingerprint(doc)
 }
 
 func calculateFingerprintBytes(content []byte) string {
