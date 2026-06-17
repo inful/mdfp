@@ -19,7 +19,7 @@ fingerprint: addfe661b7768cc74c00b7c5e8bb5dd44e2aaa5a8ca8763cf867dca670a907c6
 - **Recursive processing** - Process entire directory trees
 - **High performance** - Thoroughly benchmarked and optimized
 - **Well-tested** - Comprehensive test coverage
-- **Linted** - Passes golangci-lint v2.8.0
+- **Linted** - Passes golangci-lint v2.12.2
 
 ## Installation
 

@@ -8,10 +8,12 @@ import (
 	"testing"
 )
 
-const testFrontmatterContent = `---
-title: Test
----
-# Content`
+const (
+	testFrontmatterTitle   = "title: Test"
+	testFrontmatterBody    = "# Content"
+	testTitleAuthorJohn    = "title: Test\nauthor: John"
+	testFrontmatterContent = "---\n" + testFrontmatterTitle + "\n---\n" + testFrontmatterBody
+)
 
 func TestParseMarkdown(t *testing.T) {
 	tests := []struct {
@@ -27,7 +29,7 @@ func TestParseMarkdown(t *testing.T) {
 title: Test
 ---
 # Hello World`,
-			wantFrontmatter: "title: Test",
+			wantFrontmatter: testFrontmatterTitle,
 			wantBody:        "# Hello World",
 			wantErr:         false,
 		},
@@ -51,13 +53,13 @@ title: Test
 ---
 # Content`,
 			wantFrontmatter: "",
-			wantBody:        "# Content",
+			wantBody:        testFrontmatterBody,
 			wantErr:         false,
 		},
 		{
 			name:            "with crlf frontmatter",
 			input:           "---\r\ntitle: Test\r\n---\r\n# Hello World\r\n",
-			wantFrontmatter: "title: Test",
+			wantFrontmatter: testFrontmatterTitle,
 			wantBody:        "# Hello World\r\n",
 			wantErr:         false,
 		},
@@ -101,22 +103,15 @@ func TestCalculateFingerprint(t *testing.T) {
 		{
 			name:    "multiline content",
 			content: "Line 1\nLine 2\nLine 3",
-			want:    "f5e3c19ded874aa72b0b8c8f7e6b3c56e8a8c5c6d0d9e8e6f7f8e9f0a1b2c3d4",
+			want:    "391ba54caa9e9da3dd31dca1eff275e706979e76c1f60c91401f0624734f52b0",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := CalculateFingerprint(tt.content)
-			// Check that we get a valid SHA256 hash (64 hex characters)
-			if len(got) != 64 {
-				t.Errorf("CalculateFingerprint() returned hash of length %d, want 64", len(got))
-			}
-			// For deterministic tests, verify specific known hashes
-			if tt.name == "simple content" || tt.name == "empty content" {
-				if got != tt.want {
-					t.Errorf("CalculateFingerprint() = %v, want %v", got, tt.want)
-				}
+			if got != tt.want {
+				t.Errorf("CalculateFingerprint() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -131,7 +126,7 @@ func TestRemoveFingerprintFromFrontmatter(t *testing.T) {
 		{
 			name:  "with fingerprint",
 			input: "title: Test\nfingerprint: abc123\nauthor: John",
-			want:  "title: Test\nauthor: John",
+			want:  testTitleAuthorJohn,
 		},
 		{
 			name:  "with fingerprint and trailing newline",
@@ -140,13 +135,13 @@ func TestRemoveFingerprintFromFrontmatter(t *testing.T) {
 		},
 		{
 			name:  "no fingerprint",
-			input: "title: Test\nauthor: John",
-			want:  "title: Test\nauthor: John",
+			input: testTitleAuthorJohn,
+			want:  testTitleAuthorJohn,
 		},
 		{
 			name:  "fingerprint with spaces",
 			input: "title: Test\nfingerprint:    abc123   \nauthor: John",
-			want:  "title: Test\nauthor: John",
+			want:  testTitleAuthorJohn,
 		},
 		{
 			name:  "only fingerprint line with trailing newline",
@@ -179,7 +174,7 @@ func TestAddFingerprintToFrontmatter(t *testing.T) {
 	}{
 		{
 			name:        "add to existing",
-			frontmatter: "title: Test\nauthor: John",
+			frontmatter: testTitleAuthorJohn,
 			fingerprint: "abc123",
 			want:        "title: Test\nauthor: John\nfingerprint: abc123\n",
 		},
