@@ -1,6 +1,6 @@
 # ADR 0001: CalculateFingerprintFromParts
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-01-20
 
 ## Context

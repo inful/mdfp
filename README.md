@@ -11,15 +11,15 @@ fingerprint: addfe661b7768cc74c00b7c5e8bb5dd44e2aaa5a8ca8763cf867dca670a907c6
 
 ## Features
 
-- **Pure Go library** - No external dependencies for core functionality
+- **Pure Go library** - Frontmatter parsing and mutation are powered by `github.com/inful/mdfm`
 - **Content-based fingerprinting** - SHA256 hash of markdown content (excluding frontmatter)
-- **Automatic frontmatter management** - Adds or updates fingerprint in YAML frontmatter
+- **Semantic frontmatter management** - Adds or updates fingerprint in YAML frontmatter via YAML-aware key operations
 - **Command-line tool** - Easy-to-use CLI for processing files and directories
 - **Verification mode** - Check if fingerprints match current content
 - **Recursive processing** - Process entire directory trees
 - **High performance** - Thoroughly benchmarked and optimized
 - **Well-tested** - Comprehensive test coverage
-- **Linted** - Passes golangci-lint v2.8.0
+- **Linted** - Passes golangci-lint v2.12.2
 
 ## Installation
 
@@ -180,12 +180,24 @@ Computes the fingerprint for a document represented by parsed parts (same `front
 #### `ParseMarkdown(content string) (frontmatter string, body string, err error)`
 Extracts frontmatter and body from markdown content.
 
+This is a compatibility helper for callers that still work with delimiter-free frontmatter strings. Validation is performed through `mdfm`, while the returned `frontmatter` and `body` slices are extracted from the original markdown bytes.
+
+#### `RemoveFingerprintFromFrontmatter(frontmatter string) string`
+Removes the top-level `fingerprint` key from raw delimiter-free frontmatter.
+
+This is a compatibility helper layered on top of `mdfm` semantic mutation.
+
+#### `AddFingerprintToFrontmatter(frontmatter, fingerprint string) string`
+Adds or replaces the top-level `fingerprint` key in raw delimiter-free frontmatter.
+
+This is a compatibility helper layered on top of `mdfm` semantic mutation.
+
 ## How It Works
 
-1. **Parse** - Extracts YAML frontmatter (between `---` delimiters) from the markdown file
+1. **Parse** - Parses YAML frontmatter (between `---` delimiters) with `mdfm`
 2. **Calculate** - Computes a SHA256 hash of the content (excluding frontmatter)
-3. **Update** - Adds or updates the `fingerprint` field in the frontmatter
-4. **Write** - Reconstructs the file with updated frontmatter
+3. **Update** - Adds or updates the `fingerprint` field with semantic top-level key operations
+4. **Write** - Serializes the markdown back through `mdfm`
 
 The fingerprint is calculated from the markdown content only, excluding the frontmatter. This means changes to metadata (title, author, etc.) don't affect the fingerprint, only changes to the actual content.
 

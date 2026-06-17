@@ -1,6 +1,7 @@
 package mdfp
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,10 +9,12 @@ import (
 	"testing"
 )
 
-const testFrontmatterContent = `---
-title: Test
----
-# Content`
+const (
+	testFrontmatterTitle   = "title: Test"
+	testFrontmatterBody    = "# Content"
+	testTitleAuthorJohn    = "title: Test\nauthor: John"
+	testFrontmatterContent = "---\n" + testFrontmatterTitle + "\n---\n" + testFrontmatterBody
+)
 
 func TestParseMarkdown(t *testing.T) {
 	tests := []struct {
@@ -27,7 +30,7 @@ func TestParseMarkdown(t *testing.T) {
 title: Test
 ---
 # Hello World`,
-			wantFrontmatter: "title: Test",
+			wantFrontmatter: testFrontmatterTitle,
 			wantBody:        "# Hello World",
 			wantErr:         false,
 		},
@@ -51,8 +54,34 @@ title: Test
 ---
 # Content`,
 			wantFrontmatter: "",
-			wantBody:        "# Content",
+			wantBody:        testFrontmatterBody,
 			wantErr:         false,
+		},
+		{
+			name:            "with crlf frontmatter",
+			input:           "---\r\ntitle: Test\r\n---\r\n# Hello World\r\n",
+			wantFrontmatter: testFrontmatterTitle,
+			wantBody:        "# Hello World\r\n",
+			wantErr:         false,
+		},
+		{
+			// mdfm.Parse is lenient and accepts a closing `---` with
+			// no trailing newline, but our byte extractor requires the
+			// delimiter to be followed by `\n` / `\r\n`. This case
+			// documents the current behavior: lf input without a
+			// trailing newline fails because the closing pattern
+			// `\n---\n` is not found.
+			name:    "closing delimiter at eof without newline (lf)",
+			input:   "---\ntitle: T\n---",
+			wantErr: true,
+		},
+		{
+			// Mixed LF opening with CRLF body/closing is malformed
+			// and our byte extractor rejects it because the closing
+			// delimiter style does not match the opening.
+			name:    "lf opening with crlf closing",
+			input:   "---\ntitle: T\r\n---\r\n",
+			wantErr: true,
 		},
 	}
 
@@ -94,22 +123,15 @@ func TestCalculateFingerprint(t *testing.T) {
 		{
 			name:    "multiline content",
 			content: "Line 1\nLine 2\nLine 3",
-			want:    "f5e3c19ded874aa72b0b8c8f7e6b3c56e8a8c5c6d0d9e8e6f7f8e9f0a1b2c3d4",
+			want:    "391ba54caa9e9da3dd31dca1eff275e706979e76c1f60c91401f0624734f52b0",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := CalculateFingerprint(tt.content)
-			// Check that we get a valid SHA256 hash (64 hex characters)
-			if len(got) != 64 {
-				t.Errorf("CalculateFingerprint() returned hash of length %d, want 64", len(got))
-			}
-			// For deterministic tests, verify specific known hashes
-			if tt.name == "simple content" || tt.name == "empty content" {
-				if got != tt.want {
-					t.Errorf("CalculateFingerprint() = %v, want %v", got, tt.want)
-				}
+			if got != tt.want {
+				t.Errorf("CalculateFingerprint() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -124,7 +146,7 @@ func TestRemoveFingerprintFromFrontmatter(t *testing.T) {
 		{
 			name:  "with fingerprint",
 			input: "title: Test\nfingerprint: abc123\nauthor: John",
-			want:  "title: Test\nauthor: John",
+			want:  testTitleAuthorJohn,
 		},
 		{
 			name:  "with fingerprint and trailing newline",
@@ -133,13 +155,13 @@ func TestRemoveFingerprintFromFrontmatter(t *testing.T) {
 		},
 		{
 			name:  "no fingerprint",
-			input: "title: Test\nauthor: John",
-			want:  "title: Test\nauthor: John",
+			input: testTitleAuthorJohn,
+			want:  testTitleAuthorJohn,
 		},
 		{
 			name:  "fingerprint with spaces",
 			input: "title: Test\nfingerprint:    abc123   \nauthor: John",
-			want:  "title: Test\nauthor: John",
+			want:  testTitleAuthorJohn,
 		},
 		{
 			name:  "only fingerprint line with trailing newline",
@@ -163,6 +185,31 @@ func TestRemoveFingerprintFromFrontmatter(t *testing.T) {
 	}
 }
 
+// TestRemoveFingerprintFromFrontmatter_InvalidYAML exercises the
+// mdfm-mutation error fallback: when mdfm cannot parse the input, the
+// helper returns the original frontmatter unchanged.
+func TestRemoveFingerprintFromFrontmatter_InvalidYAML(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+	}{
+		{"unclosed bracket", "[unclosed"},
+		{"unclosed brace", "{ unclosed"},
+		{"invalid control bytes", "\x00\x01"},
+		{"bad indent", "a: b\n  c: d\n a: e"},
+		{"invalid yaml token", "@invalid"},
+		{"unterminated string", `"unterminated`},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RemoveFingerprintFromFrontmatter(tt.input)
+			if got != tt.input {
+				t.Errorf("RemoveFingerprintFromFrontmatter(%q) = %q, want input unchanged", tt.input, got)
+			}
+		})
+	}
+}
+
 func TestAddFingerprintToFrontmatter(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -172,7 +219,7 @@ func TestAddFingerprintToFrontmatter(t *testing.T) {
 	}{
 		{
 			name:        "add to existing",
-			frontmatter: "title: Test\nauthor: John",
+			frontmatter: testTitleAuthorJohn,
 			fingerprint: "abc123",
 			want:        "title: Test\nauthor: John\nfingerprint: abc123\n",
 		},
@@ -195,6 +242,28 @@ func TestAddFingerprintToFrontmatter(t *testing.T) {
 			got := AddFingerprintToFrontmatter(tt.frontmatter, tt.fingerprint)
 			if got != tt.want {
 				t.Errorf("AddFingerprintToFrontmatter() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestAddFingerprintToFrontmatter_InvalidYAML exercises the mdfm-mutation
+// error fallback: when mdfm cannot parse the input, the helper returns
+// the original frontmatter unchanged.
+func TestAddFingerprintToFrontmatter_InvalidYAML(t *testing.T) {
+	cases := []string{
+		"[unclosed",
+		"{ unclosed",
+		"\x00\x01",
+		"a: b\n  c: d\n a: e",
+		"@invalid",
+		`"unterminated`,
+	}
+	for _, input := range cases {
+		t.Run(input, func(t *testing.T) {
+			got := AddFingerprintToFrontmatter(input, "fp")
+			if got != input {
+				t.Errorf("AddFingerprintToFrontmatter(%q) = %q, want input unchanged", input, got)
 			}
 		})
 	}
@@ -227,6 +296,20 @@ fingerprint: oldfingerprint
 ---
 # Content`,
 			wantErr: false,
+		},
+		{
+			// Exercises the mdfm.ParseString error branch: an
+			// unclosed frontmatter block fails to parse.
+			name:    "unclosed frontmatter",
+			input:   "---",
+			wantErr: true,
+		},
+		{
+			// Exercises the mdfm.ParseString error branch: invalid
+			// YAML inside the frontmatter block fails to parse.
+			name:    "invalid yaml in frontmatter",
+			input:   "---\n[unclosed\n---\n# Content",
+			wantErr: true,
 		},
 	}
 
@@ -266,6 +349,24 @@ fingerprint: oldfingerprint
 				t.Error("ProcessContent() did not find valid fingerprint")
 			}
 		})
+	}
+}
+
+func TestProcessContentPreservesCRLF(t *testing.T) {
+	input := "---\r\ntitle: Test\r\n---\r\n# Content\r\n"
+
+	processed, err := ProcessContent(input)
+	if err != nil {
+		t.Fatalf("ProcessContent() error = %v", err)
+	}
+
+	if !strings.Contains(processed, "\r\n") {
+		t.Fatal("ProcessContent() should preserve CRLF newlines")
+	}
+
+	lfOnly := strings.ReplaceAll(processed, "\r\n", "")
+	if strings.Contains(lfOnly, "\n") {
+		t.Fatal("ProcessContent() should not introduce LF-only newlines into a CRLF document")
 	}
 }
 
@@ -368,6 +469,33 @@ fingerprint
 	}
 }
 
+// TestVerifyFingerprint_NonStringFingerprintValue exercises the
+// doc.GetString error branch: when the frontmatter's `fingerprint` key
+// holds a non-string value, GetString returns a type error.
+func TestVerifyFingerprint_NonStringFingerprintValue(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{"integer", "---\nfingerprint: 123\n---\n# Content"},
+		{"boolean", "---\nfingerprint: true\n---\n# Content"},
+		{"list", "---\nfingerprint: [a, b]\n---\n# Content"},
+		{"map", "---\nfingerprint: {a: b}\n---\n# Content"},
+		{"null tilde", "---\nfingerprint: ~\n---\n# Content"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			valid, err := VerifyFingerprint(tt.content)
+			if err == nil {
+				t.Errorf("VerifyFingerprint(%s): expected error, got nil", tt.name)
+			}
+			if valid {
+				t.Errorf("VerifyFingerprint(%s): expected valid=false, got true", tt.name)
+			}
+		})
+	}
+}
+
 func TestCalculateFingerprintReader(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -423,6 +551,26 @@ func TestCalculateFingerprintReader(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// errReader returns an error from Read on the first call, covering the
+// io.Copy error branch in CalculateFingerprintReader.
+type errReader struct{ err error }
+
+func (e errReader) Read(_ []byte) (int, error) { return 0, e.err }
+
+func TestCalculateFingerprintReader_PropagatesReadError(t *testing.T) {
+	want := errors.New("simulated read failure")
+	got, err := CalculateFingerprintReader(errReader{err: want})
+	if err == nil {
+		t.Fatal("CalculateFingerprintReader() expected error, got nil")
+	}
+	if !errors.Is(err, want) {
+		t.Errorf("CalculateFingerprintReader() error = %v, want wrapping %v", err, want)
+	}
+	if got != "" {
+		t.Errorf("CalculateFingerprintReader() on error: got %q, want empty string", got)
 	}
 }
 
@@ -530,6 +678,48 @@ func TestProcessFileErrors(t *testing.T) {
 	t.Run("no change needed", func(t *testing.T) {
 		testProcessFileNoChange(t, tmpDir)
 	})
+}
+
+// stubFrontmatterDoc is a minimal test stub implementing FrontmatterDocument.
+type stubFrontmatterDoc struct {
+	fields map[string]string
+	body   []byte
+}
+
+func (s *stubFrontmatterDoc) Has(key string) (bool, error) {
+	_, ok := s.fields[key]
+	return ok, nil
+}
+
+func (s *stubFrontmatterDoc) SetString(key, value string) error {
+	s.fields[key] = value
+	return nil
+}
+
+func (s *stubFrontmatterDoc) Body() []byte {
+	return s.body
+}
+
+func TestSetFingerprint(t *testing.T) {
+	body := []byte("# Body content\n")
+	doc := &stubFrontmatterDoc{fields: map[string]string{}, body: body}
+
+	if err := SetFingerprint(doc); err != nil {
+		t.Fatalf("SetFingerprint() error = %v", err)
+	}
+
+	fp, ok := doc.fields[FingerprintField]
+	if !ok {
+		t.Fatal("SetFingerprint() did not set fingerprint field")
+	}
+	if len(fp) != 64 {
+		t.Errorf("SetFingerprint() fingerprint length = %d, want 64", len(fp))
+	}
+
+	expected := CalculateFingerprint(string(body))
+	if fp != expected {
+		t.Errorf("SetFingerprint() = %v, want %v", fp, expected)
+	}
 }
 
 func TestProcessContentNoFrontmatter(t *testing.T) {

@@ -3,9 +3,12 @@ package mdfp
 import (
 	"strings"
 	"testing"
+
+	"github.com/inful/mdfm"
 )
 
-var benchContent = `---
+var (
+	benchContent = `---
 title: Test Document
 author: John Doe
 date: 2024-01-01
@@ -32,10 +35,34 @@ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
 ## Section 4
 
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`
+	benchmarkFrontmatterWithFingerprint = `title: Test
+author: John Doe
+fingerprint: abc123def456
+date: 2024-01-01`
+	benchmarkFrontmatterWithoutFingerprint = `title: Test
+author: John Doe
+date: 2024-01-01`
+)
 
 func BenchmarkParseMarkdown(b *testing.B) {
 	for b.Loop() {
 		_, _, _ = ParseMarkdown(benchContent)
+	}
+}
+
+func BenchmarkExtractFrontmatterAndBodyBytes_LF(b *testing.B) {
+	content := []byte(benchContent)
+
+	for b.Loop() {
+		_, _, _ = extractFrontmatterAndBodyBytes(content)
+	}
+}
+
+func BenchmarkExtractFrontmatterAndBodyBytes_CRLF(b *testing.B) {
+	content := []byte(strings.ReplaceAll(benchContent, "\n", "\r\n"))
+
+	for b.Loop() {
+		_, _, _ = extractFrontmatterAndBodyBytes(content)
 	}
 }
 
@@ -64,34 +91,41 @@ func BenchmarkCalculateFingerprintLarge(b *testing.B) {
 }
 
 func BenchmarkRemoveFingerprintFromFrontmatter(b *testing.B) {
-	frontmatter := `title: Test
-author: John Doe
-fingerprint: abc123def456
-date: 2024-01-01`
-
 	for b.Loop() {
-		_ = RemoveFingerprintFromFrontmatter(frontmatter)
+		_ = RemoveFingerprintFromFrontmatter(benchmarkFrontmatterWithFingerprint)
 	}
 }
 
 func BenchmarkRemoveFingerprintFromFrontmatter_NoMatch(b *testing.B) {
-	frontmatter := `title: Test
-author: John Doe
-date: 2024-01-01`
-
 	for b.Loop() {
-		_ = RemoveFingerprintFromFrontmatter(frontmatter)
+		_ = RemoveFingerprintFromFrontmatter(benchmarkFrontmatterWithoutFingerprint)
 	}
 }
 
 func BenchmarkAddFingerprintToFrontmatter(b *testing.B) {
-	frontmatter := `title: Test
-author: John Doe
-date: 2024-01-01`
 	fingerprint := "abc123def456789"
 
 	for b.Loop() {
-		_ = AddFingerprintToFrontmatter(frontmatter, fingerprint)
+		_ = AddFingerprintToFrontmatter(benchmarkFrontmatterWithoutFingerprint, fingerprint)
+	}
+}
+
+func BenchmarkMutateFrontmatter_DeleteFingerprint(b *testing.B) {
+	for b.Loop() {
+		_, _ = mutateFrontmatter(benchmarkFrontmatterWithFingerprint, func(doc *mdfm.Document) error {
+			_, err := doc.Delete(FingerprintField)
+			return err
+		})
+	}
+}
+
+func BenchmarkMutateFrontmatter_SetFingerprint(b *testing.B) {
+	fingerprint := "abc123def456789"
+
+	for b.Loop() {
+		_, _ = mutateFrontmatter(benchmarkFrontmatterWithoutFingerprint, func(doc *mdfm.Document) error {
+			return doc.SetString(FingerprintField, fingerprint)
+		})
 	}
 }
 
@@ -141,14 +175,10 @@ func BenchmarkCalculateFingerprintFromParts_NoFrontmatter(b *testing.B) {
 }
 
 func BenchmarkCalculateFingerprintFromParts_WithFrontmatter(b *testing.B) {
-	frontmatter := `title: Test
-author: John Doe
-fingerprint: abc123def456
-date: 2024-01-01`
 	body := strings.Repeat("Test content line\n", 100)
 
 	for b.Loop() {
-		_ = CalculateFingerprintFromParts(frontmatter, body)
+		_ = CalculateFingerprintFromParts(benchmarkFrontmatterWithFingerprint, body)
 	}
 }
 
